@@ -10,13 +10,14 @@ import time
 import matplotlib.pyplot as plt
 from tkinter import *
 from math import exp, sqrt, ceil
+from copy import deepcopy
 
 # Constants
 file_name = "test.txt"
 FILE_DIR = "../benchmarks/"
 
 # Global variables
-num_nodes_to_place = 0  # Number of nodes in the circuit to be placed
+num_nodes_to_part = 0  # Number of nodes in the circuit to be placed
 num_node_connections = 0  # Number of connections to be routed, summed across all nodes/nets
 grid_width = 2  # Width of the partition grid
 grid_height = 0  # Height of the partition grid
@@ -29,6 +30,10 @@ unique_line_list = []  # List of unique lines across multiple nets
 
 # Partitioning variables
 best_partition = None
+partition_list = []
+current_tree_depth = 0
+node_id_queue = []
+max_nodes_per_half = 0
 
 
 class Site:
@@ -76,26 +81,76 @@ class Partition:
         self.right = []
         self.cost = 0
 
+    def copy(self):
+        copy_partition = Partition()
+        for node in self.left:
+            copy_partition.left.append(node)
+        for node in self.right:
+            copy_partition.right.append(node)
+        copy_partition.cost = self.cost
+
+        return copy_partition
+
     def calculate_cost(self):
         local_partition_cost = 0
         net_on_left = False
         net_on_right = False
 
         for net in net_dict.values():
-            if net.source in self.left:
+            if net.source.id in self.left:
                 net_on_left = True
-            elif net.source in self.right:
+            elif net.source.id in self.right:
                 net_on_right = True
             for node in net.sinks:
-                if node in self.left:
+                if node.id in self.left:
                     net_on_left = True
-                if node in self.right:
+                if node.id in self.right:
                     net_on_right = True
             if net_on_left and net_on_right:
                 # Net is split
                 local_partition_cost += 1
 
         self.cost = local_partition_cost
+
+    def add_node(self, node: Node, add_left=True):
+        # Check if node will split any nets
+        for net in node.nets:
+            net_on_left = False
+            net_on_right = False
+            if net.source.id in self.left:
+                net_on_left = True
+            elif net.source.id in self.right:
+                net_on_right = True
+            for node in net.sinks:
+                if node.id in self.left:
+                    net_on_left = True
+                if node.id in self.right:
+                    net_on_right = True
+            if net_on_left and net_on_right:
+                # Net is already split
+                continue
+            elif net_on_right:
+                if add_left:
+                    # Net will be split
+                    self.cost += 1
+            elif net_on_left:
+                if not add_left:
+                    # Net will be split
+                    self.cost += 1
+
+        # Add the node to the partition
+        if add_left:
+            self.left.append(node.id)
+        else:
+            self.right.append(node.id)
+
+    def is_balanced(self):
+        global max_nodes_per_half
+
+        if len(self.left) > max_nodes_per_half or len(self.right) > max_nodes_per_half:
+            return False
+        else:
+            return True
 
 
 class Net:
@@ -110,36 +165,8 @@ class Net:
         self.lines = []  # References to Lines in this net
         pass
 
-
-def reset_globals():
-    """
-    Reset (most) global variables.
-    Used for repeated calls to this script from a parent script.
-    """
-    global num_nodes_to_place
-    global num_node_connections
-    global grid_width
-    global grid_height
-    global node_dict
-    global net_dict
-    global partition_grid
-    global partitioning_done
-    global root
-    global unique_line_list
-
-    num_nodes_to_place = 0
-    num_node_connections = 0
-    grid_width = 2
-    grid_height = 0
-    node_dict = {}
-    net_dict = {}
-    partition_grid = []
-    partitioning_done = False
-    root = None
-    unique_line_list = []
-
     
-def partition(f_name: str):
+def partition_algorithm(f_name: str):
     """
     Perform anneal with a GUI.
     :param f_name: Name of file to open
@@ -147,7 +174,7 @@ def partition(f_name: str):
     """
     global FILE_DIR
     global file_name
-    global num_nodes_to_place
+    global num_nodes_to_part
     global num_node_connections
     global grid_width
     global grid_height
@@ -216,30 +243,94 @@ def partition(f_name: str):
     root.mainloop()
 
 
+def partition_to_completion(partition_canvas):
+    """
+    Execute Simulated Annealing to completion.
+    :param partition_canvas: Tkinter canvas
+    :return: void
+    """
+
+    start = time.time()  # Record time taken for full partition
+    while not partitioning_done:
+        step()
+    end = time.time()
+    elapsed = end - start
+    print("Took " + str(elapsed) + "s")
+
+    replace_partition(partition_canvas)
+
+
+def multistep(partition_canvas, n):
+    """
+    Perform multiple iterations of partitioning
+    :param partition_canvas: Tkinter canvas
+    :param n: Number of iterations
+    :return: void
+    """
+
+    # Redraw lines on GUI to reflect current state of partitioning
+    #if partition_canvas is not None:
+    #    redraw_all_lines(partition_canvas)
+    pass
+
+
+def step():
+    global best_partition
+    global node_id_queue
+    global partition_list
+    global partitioning_done
+    global current_tree_depth
+
+    if not node_id_queue or not partition_list:
+        partitioning_done = True
+        # Update best partition
+        for partition in partition_list:
+            if partition.cost < best_partition.cost:
+                best_partition = partition
+        return
+
+    next_node = node_dict[node_id_queue.pop()]
+    current_depth_partitions = []
+
+    while partition_list:
+        # Create left and right partitions
+        new_partition_left = partition_list.pop()
+        new_partition_right = deepcopy(new_partition_left)
+        new_partition_left.add_node(next_node, add_left=True)
+        new_partition_right.add_node(next_node, add_left=False)
+        # Check if new partitions are valid
+        if new_partition_left.cost < best_partition.cost and new_partition_left.is_balanced():
+            current_depth_partitions.append(new_partition_left)
+        if new_partition_right.cost < best_partition.cost and new_partition_right.is_balanced():
+            current_depth_partitions.append(new_partition_right)
+
+    partition_list = current_depth_partitions
+    current_tree_depth += 1
+    print(current_tree_depth)
+
+
 def initial_partition(partition_canvas):
     """
-    Perform an initial partition prior to Simulated Annealing
+    Perform an initial partition prior to branch-and-bound
     :param partition_canvas: Tkinter canvas
     """
     global partition_grid
-    global num_nodes_to_place
+    global num_nodes_to_part
     global best_partition
 
     best_partition = Partition()
-    for node_idx, node in enumerate(node_dict.values()):
+    for node_idx, node_id in enumerate(node_dict.keys()):
         # Place nodes randomly into partition
         if node_idx % 2 == 0:
-            best_partition.left.append(node)
+            best_partition.left.append(node_id)
         else:
-            best_partition.right.append(node)
+            best_partition.right.append(node_id)
+        node_id_queue.append(node_id)  # For later branch-and-bound processing
+    best_partition.calculate_cost()
 
-    # Place left half of partition
-    x = 0
-    for y, node in enumerate(best_partition.left):
-        place_node(node, x, y)
-    x = 1
-    for y, node in enumerate(best_partition.right):
-        place_node(node, x, y)
+    print("Initial cost: " + str(best_partition.cost))
+
+    place_partition(best_partition)
 
     # Draw partition
     for net in net_dict.values():
@@ -247,15 +338,57 @@ def initial_partition(partition_canvas):
         if partition_canvas is not None:
             draw_net(partition_canvas, net)
 
+    partition_list.append(Partition())  # A blank partition to start branch-and-bound from
+
+
+def place_partition(partition: Partition):
+    global partition_grid
+
+    for node_id in node_dict.keys():
+        if node_id not in partition.left and node_id not in partition.right:
+            print("Orphan node: ")
+            print(node_id)
+            print(partition.left)
+            print(partition.right)
+
+    # Place left half of partition
+    x = 0
+    for y, node_id in enumerate(partition.left):
+        place_node(node_dict[node_id], x, y)
+    x = 1
+    for y, node_id in enumerate(partition.right):
+        place_node(node_dict[node_id], x, y)
+
 
 def place_node(node, x, y):
     global partition_grid
-    
+
     partition_site = partition_grid[y][x]
     partition_site.occupant = node
     node.site = partition_site
     partition_site.isOccupied = True
     node.isPlaced = True
+
+
+def remove_node(node):
+    global partition_grid
+
+    node.isPlaced = False
+    node.site.isOccupied = False
+    node.site.occupant = None
+    node.site = None
+
+
+def replace_partition(partition_canvas: Canvas):
+    global best_partition
+
+    # Remove all nodes from the grid
+    for node in node_dict.values():
+        remove_node(node)
+
+    place_partition(best_partition)
+
+    redraw_all_lines(partition_canvas)
 
 
 def draw_net(partition_canvas, net):
@@ -332,38 +465,6 @@ def key_handler(partition_canvas, event):
         pass
 
 
-def partition_to_completion(partition_canvas):
-    """
-    Execute Simulated Annealing to completion.
-    :param partition_canvas: Tkinter canvas
-    :return: void
-    """
-
-    start = time.time()  # Record time taken for full partition
-    while not partitioning_done:
-        step(partition_canvas)
-    end = time.time()
-    elapsed = end - start
-    print("Took " + str(elapsed) + "s")
-
-
-def multistep(partition_canvas, n):
-    """
-    Perform multiple iterations of partitioning
-    :param partition_canvas: Tkinter canvas
-    :param n: Number of iterations
-    :return: void
-    """
-
-    # Redraw lines on GUI to reflect current state of partitioning
-    if partition_canvas is not None:
-        redraw_all_lines(partition_canvas)
-
-
-def step(partition_canvas):
-    pass
-
-
 def redraw_all_lines(partition_canvas: Canvas):
     """
     Redraw all of the lines in the GUI from scratch.
@@ -374,53 +475,28 @@ def redraw_all_lines(partition_canvas: Canvas):
         redraw_line(partition_canvas, line)
 
 
-def move(node: Node, x: int, y: int):
-    """
-    Move a node to an empty site
-    """
-
-    # Move the node
-    old_site = node.site
-    node.site = partition_grid[y][x]
-    old_site.isOccupied = False
-    old_site.occupant = None
-    node.site.isOccupied = True
-    node.site.occupant = node
-
-
-def swap(node_a: Node, node_b: Node):
-    """
-    Swap the locations (occupied sites) of two nodes
-    """
-
-    # Swap the nodes
-    temp_site = node_a.site
-    node_a.site = node_b.site
-    node_b.site = temp_site
-    node_a.site.occupant = node_a
-    node_b.site.occupant = node_b
-
-
 def create_partition_grid(routing_file) -> list[list[Site]]:
     """
     Create the 2D partition grid
     :param routing_file: Path to the file with circuit info
     :return: list[list[Node]] - Routing grid
     """
-    global num_nodes_to_place
+    global num_nodes_to_part
     global num_node_connections
     global grid_width
     global grid_height
     global node_dict
     global net_dict
     global partition_grid
+    global max_nodes_per_half
 
     grid_line = routing_file.readline()
 
     # Create the routing grid
-    num_nodes_to_place = int(grid_line.split(' ')[0])
+    num_nodes_to_part = int(grid_line.split(' ')[0])
     num_node_connections = int(grid_line.split(' ')[1])
-    grid_height = ceil(num_nodes_to_place/2)
+    grid_height = ceil(num_nodes_to_part / 2)
+    max_nodes_per_half = grid_height
     partition_grid = []
     # Create grid in column-major order
     for _ in range(grid_height):
@@ -431,7 +507,7 @@ def create_partition_grid(routing_file) -> list[list[Site]]:
             row.append(Site(x=node_x, y=node_y))
 
     # Keep a node dictionary
-    for node_id in range(num_nodes_to_place):
+    for node_id in range(num_nodes_to_part):
         node_dict[node_id] = Node(node_id)
 
     # Create nets

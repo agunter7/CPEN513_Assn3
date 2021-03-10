@@ -7,7 +7,7 @@ FILE_NAMES = ["cc.txt", "cm82a.txt", "cm138a.txt", "cm150a.txt", "cm162a.txt", "
               "ugly16.txt", "z4ml.txt"]
 
 # File name for interactive program (with GUI). Edit this to change the netlist being annealed.
-USER_FILE_NAME = "twocm.txt"
+USER_FILE_NAME = "cm82a.txt"
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
         pass
         print("Experimental mode not in use.")
     else:
-        sim_anneal.partition(USER_FILE_NAME)
+        sim_anneal.partition_algorithm(USER_FILE_NAME)
 
 
 if __name__ == "__main__":
