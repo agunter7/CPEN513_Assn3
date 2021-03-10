@@ -15,69 +15,45 @@ from math import exp, sqrt, ceil
 file_name = "test.txt"
 FILE_DIR = "../benchmarks/"
 
-# Hyperparameters
-cooling_factor = 0.8  # Coefficient for rate of anneal cooling
-initial_temp_factor = 10  # Coefficient for anneal initial temperature
-moves_per_temp_factor = 75  # Coefficient for number of moves to be performed at each temperature
-COST_TRANSITION_RATIO = 0.8  # Ratio for determining when to start using a range window for moves
-TEMP_EXIT_RATIO = 0.002  # Ratio for determining exit condition based on temperature
-COST_EXIT_RATIO = 0.005  # Ratio for determining exit condition based on cost
-MOVE_SAMPLE_SIZE = 50  # Initial number of moves to be performed to determine cost variance of moves
-hyperparam_string = str(cooling_factor) + "-" + str(initial_temp_factor) + "-" + str(moves_per_temp_factor) + "-"
-
 # Global variables
-num_cells_to_place = 0  # Number of cells in the circuit to be placed
-num_cell_connections = 0  # Number of connections to be routed, summed across all cells/nets
-grid_width = 2  # Width of the placement grid
-grid_height = 0  # Height of the placement grid
-half_grid_max_dim = 0  # Larger of width/height
-cell_dict = {}  # Dictionary of all cells, key is cell ID
+num_nodes_to_place = 0  # Number of nodes in the circuit to be placed
+num_node_connections = 0  # Number of connections to be routed, summed across all nodes/nets
+grid_width = 2  # Width of the partition grid
+grid_height = 0  # Height of the partition grid
+node_dict = {}  # Dictionary of all nodes, key is node ID
 net_dict = {}  # Dictionary of all nets, key is net ID
-partition_grid = []  # 2D list of sites for placement
-partitioning_done = False  # Is the placement complete?
-cost_history = []  # History of costs at each temperature
-iter_history = []  # History of cumulative iterations performed at each temperature
-temperature_history = []  # History of exact temperature values
-acceptance_history = []  # History of number of accepted moves
+partition_grid = []  # 2D list of sites for partition
+partitioning_done = False  # Is the partition complete?
 root = None  # Tkinter root
 unique_line_list = []  # List of unique lines across multiple nets
-# Simulated Annealing
-sa_temp = -1  # SA temperature
-sa_initial_temp = -1  # Starting SA temperature
-iters_per_temp = -1  # Number of iterations to perform at each temperature
-iters_this_temp = 0  # Number of iterations performed at the current temperature
-initial_cost = -1  # Cost of initial netlist placement
-current_cost = 0  # The estimated cost of the current placement
-prev_temp_cost = -1  # Cost at the end of exploring the previous temperature
-prev_temp_cost_ratio = float("inf")  # Cost ratio at the end of exploring the previous temperature
-total_iters = 0  # Cumulative number of iterations performed throughout program run
-acceptances_this_temp = 0  # Number of accepted moves at the current temperature
-range_window_half_length = -1  # Half the length of a side of the (square) range window
+
+# Partitioning variables
+best_partition = None
 
 
 class Site:
     """
-    A placement site/slot for a cell to inhabit
+    A partition site/slot for a node to inhabit
     """
     def __init__(self, x: int, y: int):
         self.x = x  # x location
         self.y = y  # y location
         self.canvas_id = -1  # ID of corresponding rectangle in Tkinter canvas
         self.canvas_centre = (-1, -1)  # Geometric centre of Tkinter rectangle
-        self.isOccupied = False  # Is the site occupied by a cell?
-        self.occupant = None  # Reference to occupant cell
+        self.isOccupied = False  # Is the site occupied by a node?
+        self.occupant = None  # Reference to occupant node
         pass
 
 
-class Cell:
+class Node:
     """
-    A single cell
+    A single node
     """
-    def __init__(self, cell_id):
-        self.id = cell_id  # Identifier
-        self.isPlaced = False  # Has this cell been placed into a site?
-        self.site = None  # Reference to the site this cell occupies
-        self.nets = []  # Nets this cell is a part of
+    def __init__(self, node_id):
+        self.id = node_id  # Identifier
+        self.isPlaced = False  # Has this node been placed into a site?
+        self.site = None  # Reference to the site this node occupies
+        self.nets = []  # Nets this node is a part of
         pass
 
 
@@ -85,21 +61,52 @@ class Line:
     """
     A wrapper class for Tkinter lines
     """
-    def __init__(self, source: Cell, sink: Cell, canvas_id: int):
-        self.source = source  # Reference to source cell
-        self.sink = sink  # Reference to sink cell
+    def __init__(self, source: Node, sink: Node, canvas_id: int):
+        self.source = source  # Reference to source node
+        self.sink = sink  # Reference to sink node
         self.canvas_id = canvas_id  # Tkinter ID of line
+
+
+class Partition:
+    """
+    A bipartite collection of nodes
+    """
+    def __init__(self):
+        self.left = []
+        self.right = []
+        self.cost = 0
+
+    def calculate_cost(self):
+        local_partition_cost = 0
+        net_on_left = False
+        net_on_right = False
+
+        for net in net_dict.values():
+            if net.source in self.left:
+                net_on_left = True
+            elif net.source in self.right:
+                net_on_right = True
+            for node in net.sinks:
+                if node in self.left:
+                    net_on_left = True
+                if node in self.right:
+                    net_on_right = True
+            if net_on_left and net_on_right:
+                # Net is split
+                local_partition_cost += 1
+
+        self.cost = local_partition_cost
 
 
 class Net:
     """
-    A collection of cells to be connected during routing
+    A collection of nodes to be connected during routing
     """
-    def __init__(self, net_id: int, num_cells: int):
+    def __init__(self, net_id: int, num_nodes: int):
         self.id = net_id  # Identifier
-        self.num_cells = num_cells  # Number of cells in this net
-        self.source = None  # Reference to source cell
-        self.sinks = []  # References to sink cells
+        self.num_nodes = num_nodes  # Number of nodes in this net
+        self.source = None  # Reference to source node
+        self.sinks = []  # References to sink nodes
         self.lines = []  # References to Lines in this net
         pass
 
@@ -109,91 +116,27 @@ def reset_globals():
     Reset (most) global variables.
     Used for repeated calls to this script from a parent script.
     """
-    global num_cells_to_place
-    global num_cell_connections
+    global num_nodes_to_place
+    global num_node_connections
     global grid_width
     global grid_height
-    global cell_dict
+    global node_dict
     global net_dict
     global partition_grid
     global partitioning_done
-    global cost_history
-    global iter_history
-    global temperature_history
     global root
     global unique_line_list
-    global sa_temp
-    global sa_initial_temp
-    global iters_per_temp
-    global iters_this_temp
-    global current_cost
-    global prev_temp_cost
-    global total_iters
 
-    num_cells_to_place = 0
-    num_cell_connections = 0
-    grid_width = 0
+    num_nodes_to_place = 0
+    num_node_connections = 0
+    grid_width = 2
     grid_height = 0
-    cell_dict = {}
+    node_dict = {}
     net_dict = {}
     partition_grid = []
     partitioning_done = False
-    cost_history = []
-    iter_history = []
-    temperature_history = []
     root = None
     unique_line_list = []
-    sa_temp = -1
-    sa_initial_temp = -1
-    iters_per_temp = -1
-    iters_this_temp = -1
-    current_cost = 0
-    prev_temp_cost = 0
-    total_iters = 0
-
-
-def quick_partition(f_name, cool_fact, init_temp_fact, move_p_t_fact):
-    """
-    Perform a partition without a GUI. Automatically exits after saving data.
-    For experimentation.
-    """
-    global FILE_DIR
-    global file_name
-    global num_cells_to_place
-    global num_cell_connections
-    global grid_width
-    global grid_height
-    global partition_grid
-    global cooling_factor
-    global initial_temp_factor
-    global moves_per_temp_factor
-    global hyperparam_string
-
-    reset_globals()
-
-    random.seed(0)  # Set random seed
-
-    file_name = f_name
-    cooling_factor = cool_fact
-    initial_temp_factor = init_temp_fact
-    moves_per_temp_factor = move_p_t_fact
-    hyperparam_string = str(cooling_factor) + "-" + str(initial_temp_factor) + "-" + str(moves_per_temp_factor) + "-"
-
-    print("Running: " + file_name + "-" + str(cooling_factor) + "-" + str(initial_temp_factor) + "-" +
-          str(moves_per_temp_factor))
-
-    file_path = FILE_DIR + f_name
-    script_path = os.path.dirname(__file__)
-    true_path = os.path.join(script_path, file_path)
-    routing_file = open(true_path, "r")
-
-    # Setup the routing grid/array
-    partition_grid = create_partition_grid(routing_file)
-
-    # Perform initial placement
-    initial_partition(None)
-
-    partition_to_completion(None)
 
     
 def partition(f_name: str):
@@ -204,8 +147,8 @@ def partition(f_name: str):
     """
     global FILE_DIR
     global file_name
-    global num_cells_to_place
-    global num_cell_connections
+    global num_nodes_to_place
+    global num_node_connections
     global grid_width
     global grid_height
     global partition_grid
@@ -232,7 +175,7 @@ def partition(f_name: str):
     partition_canvas.grid(column=0, row=0, sticky=(N, W, E, S))
     for y in range(grid_height):
         x = 0
-        # Add a cell site rectangle to the canvas
+        # Add a node site rectangle to the canvas
         top_left_x = site_length * x
         top_left_y = site_length * y
         bottom_right_x = top_left_x + site_length
@@ -243,7 +186,7 @@ def partition(f_name: str):
         site.canvas_id = partition_canvas.create_rectangle(rectangle_coords, fill=rectangle_colour)
         site.canvas_centre = ((top_left_x+bottom_right_x)/2, (top_left_y+bottom_right_y)/2)
         for x in range(1, grid_height-1):
-            # Add a cell site rectangle to the canvas
+            # Add a node site rectangle to the canvas
             top_left_x = site_length * x
             top_left_y = site_length * y
             bottom_right_x = top_left_x + site_length
@@ -253,7 +196,7 @@ def partition(f_name: str):
             partition_canvas.create_rectangle(rectangle_coords, fill=rectangle_colour)
 
         x = grid_height-1
-        # Add a cell site rectangle to the canvas
+        # Add a node site rectangle to the canvas
         top_left_x = site_length * x
         top_left_y = site_length * y
         bottom_right_x = top_left_x + site_length
@@ -264,7 +207,7 @@ def partition(f_name: str):
         site.canvas_id = partition_canvas.create_rectangle(rectangle_coords, fill=rectangle_colour)
         site.canvas_centre = ((top_left_x + bottom_right_x) / 2, (top_left_y + bottom_right_y) / 2)
 
-    # Perform initial placement
+    # Perform initial partition
     initial_partition(partition_canvas)
 
     # Event bindings and Tkinter start
@@ -275,55 +218,44 @@ def partition(f_name: str):
 
 def initial_partition(partition_canvas):
     """
-    Perform an initial placement prior to Simulated Annealing
+    Perform an initial partition prior to Simulated Annealing
     :param partition_canvas: Tkinter canvas
     """
     global partition_grid
-    global current_cost
-    global sa_temp
-    global moves_per_temp_factor
-    global num_cells_to_place
-    global iters_per_temp
-    global sa_initial_temp
-    global cost_history
-    global iter_history
-    global initial_cost
+    global num_nodes_to_place
+    global best_partition
 
-    # Check if there are enough sites for the requisite number of cells
-    if num_cells_to_place > (grid_width*grid_height):
-        print("ERROR: Not enough space to place this circuit!")
-        exit()
+    best_partition = Partition()
+    for node_idx, node in enumerate(node_dict.values()):
+        # Place nodes randomly into partition
+        if node_idx % 2 == 0:
+            best_partition.left.append(node)
+        else:
+            best_partition.right.append(node)
 
-    # Get a list of all sites to place cells into
-    free_sites = []
-    for x in range(grid_width):
-        for y in range(grid_height):
-            free_sites.append((x, y))
-    random.shuffle(free_sites)  # Randomize order to avoid undesired initial placement structure
+    # Place left half of partition
+    x = 0
+    for y, node in enumerate(best_partition.left):
+        place_node(node, x, y)
+    x = 1
+    for y, node in enumerate(best_partition.right):
+        place_node(node, x, y)
 
+    # Draw partition
     for net in net_dict.values():
-        # Place the net's source
-        if not net.source.isPlaced:
-            place_x, place_y = free_sites.pop()
-            placement_site = partition_grid[place_y][place_x]
-            placement_site.occupant = net.source
-            net.source.site = placement_site
-            placement_site.isOccupied = True
-            net.source.isPlaced = True
-
-        # Place the net's sinks
-        for sink in net.sinks:
-            if not sink.isPlaced:
-                place_x, place_y = free_sites.pop()
-                placement_site = partition_grid[place_y][place_x]
-                placement_site.occupant = sink
-                sink.site = placement_site
-                placement_site.isOccupied = True
-                sink.isPlaced = True
-
         # Draw net on canvas
         if partition_canvas is not None:
             draw_net(partition_canvas, net)
+
+
+def place_node(node, x, y):
+    global partition_grid
+    
+    partition_site = partition_grid[y][x]
+    partition_site.occupant = node
+    node.site = partition_site
+    partition_site.isOccupied = True
+    node.isPlaced = True
 
 
 def draw_net(partition_canvas, net):
@@ -339,7 +271,7 @@ def draw_net(partition_canvas, net):
         if not sink.isPlaced:
             return
 
-    # Draw line between cells
+    # Draw line between nodes
     for sink in net.sinks:
         if partition_canvas is not None:
             line_id = draw_line(partition_canvas, net.source, sink)
@@ -350,9 +282,9 @@ def draw_net(partition_canvas, net):
         unique_line_list.append(new_line)
 
 
-def draw_line(partition_canvas, source: Cell, sink: Cell):
+def draw_line(partition_canvas, source: Node, sink: Node):
     """
-    Draws a line between two placed cells
+    Draws a line between two placed nodes
     """
 
     # Get line coordinates
@@ -407,7 +339,7 @@ def partition_to_completion(partition_canvas):
     :return: void
     """
 
-    start = time.time()  # Record time taken for full placement
+    start = time.time()  # Record time taken for full partition
     while not partitioning_done:
         step(partition_canvas)
     end = time.time()
@@ -442,76 +374,65 @@ def redraw_all_lines(partition_canvas: Canvas):
         redraw_line(partition_canvas, line)
 
 
-def move(cell: Cell, x: int, y: int, delta: float):
+def move(node: Node, x: int, y: int):
     """
-    Move a cell to an empty site
+    Move a node to an empty site
     """
-    global current_cost
-    global sa_temp
 
-    # Move the cell
-    old_site = cell.site
-    cell.site = partition_grid[y][x]
+    # Move the node
+    old_site = node.site
+    node.site = partition_grid[y][x]
     old_site.isOccupied = False
     old_site.occupant = None
-    cell.site.isOccupied = True
-    cell.site.occupant = cell
-
-    # Update total cost
-    current_cost += delta
+    node.site.isOccupied = True
+    node.site.occupant = node
 
 
-def swap(cell_a: Cell, cell_b: Cell, delta: float):
+def swap(node_a: Node, node_b: Node):
     """
-    Swap the locations (occupied sites) of two cells
+    Swap the locations (occupied sites) of two nodes
     """
-    global current_cost
 
-    # Swap the cells
-    temp_site = cell_a.site
-    cell_a.site = cell_b.site
-    cell_b.site = temp_site
-    cell_a.site.occupant = cell_a
-    cell_b.site.occupant = cell_b
-
-    # Update total cost
-    current_cost += delta
+    # Swap the nodes
+    temp_site = node_a.site
+    node_a.site = node_b.site
+    node_b.site = temp_site
+    node_a.site.occupant = node_a
+    node_b.site.occupant = node_b
 
 
 def create_partition_grid(routing_file) -> list[list[Site]]:
     """
-    Create the 2D placement grid
+    Create the 2D partition grid
     :param routing_file: Path to the file with circuit info
-    :return: list[list[Cell]] - Routing grid
+    :return: list[list[Node]] - Routing grid
     """
-    global num_cells_to_place
-    global num_cell_connections
+    global num_nodes_to_place
+    global num_node_connections
     global grid_width
     global grid_height
-    global cell_dict
+    global node_dict
     global net_dict
     global partition_grid
-    global range_window_half_length
-    global half_grid_max_dim
 
     grid_line = routing_file.readline()
 
     # Create the routing grid
-    num_cells_to_place = int(grid_line.split(' ')[0])
-    num_cell_connections = int(grid_line.split(' ')[1])
-    grid_height = ceil(num_cells_to_place/2)
+    num_nodes_to_place = int(grid_line.split(' ')[0])
+    num_node_connections = int(grid_line.split(' ')[1])
+    grid_height = ceil(num_nodes_to_place/2)
     partition_grid = []
     # Create grid in column-major order
     for _ in range(grid_height):
         partition_grid.append([])
     # Populate grid with sites
-    for cell_y, row in enumerate(partition_grid):
-        for cell_x in range(grid_width):
-            row.append(Site(x=cell_x, y=cell_y))
+    for node_y, row in enumerate(partition_grid):
+        for node_x in range(grid_width):
+            row.append(Site(x=node_x, y=node_y))
 
-    # Keep a cell dictionary
-    for cell_id in range(num_cells_to_place):
-        cell_dict[cell_id] = Cell(cell_id)
+    # Keep a node dictionary
+    for node_id in range(num_nodes_to_place):
+        node_dict[node_id] = Node(node_id)
 
     # Create nets
     new_net_id = -1
@@ -524,25 +445,24 @@ def create_partition_grid(routing_file) -> list[list[Site]]:
             new_net_id += -1
             continue
 
-        num_cells_in_net = int(net_tokens[0])
+        num_nodes_in_net = int(net_tokens[0])
 
         # Create new net
-        new_net = Net(line_num, num_cells_in_net)
+        new_net = Net(line_num, num_nodes_in_net)
         net_dict[line_num] = new_net
 
-        # Add cells to net
-        source_id = int(net_tokens[1])  # Add source cell first
-        source_cell = cell_dict[source_id]
-        new_net.source = source_cell
-        source_cell.nets.append(new_net)
-        for sink_idx in range(2, num_cells_in_net+1):
+        # Add nodes to net
+        source_id = int(net_tokens[1])  # Add source node first
+        source_node = node_dict[source_id]
+        new_net.source = source_node
+        source_node.nets.append(new_net)
+        for sink_idx in range(2, num_nodes_in_net+1):
             if net_tokens[sink_idx] == '\n' or net_tokens[sink_idx] == '':
                 continue
             else:
                 sink_id = int(net_tokens[sink_idx])
-                sink_cell = cell_dict[sink_id]
-                new_net.sinks.append(sink_cell)
-                sink_cell.nets.append(new_net)
+                sink_node = node_dict[sink_id]
+                new_net.sinks.append(sink_node)
+                sink_node.nets.append(new_net)
 
     return partition_grid
-
