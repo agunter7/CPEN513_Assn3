@@ -76,18 +76,26 @@ class Partition:
     """
     A bipartite collection of nodes
     """
+    id_counter = 0
+
     def __init__(self):
         self.left = []
         self.right = []
         self.cost = 0
+        self.id = Partition.get_id()
+        self.parent_id = 0
+        Partition.id_counter += 1
+
+    @staticmethod
+    def get_id():
+        temp = Partition.id_counter
+        Partition.id_counter += 1
+        return temp
 
     def copy(self):
-        copy_partition = Partition()
-        for node in self.left:
-            copy_partition.left.append(node)
-        for node in self.right:
-            copy_partition.right.append(node)
-        copy_partition.cost = self.cost
+        copy_partition = deepcopy(self)
+        copy_partition.parent_id = copy_partition.id
+        copy_partition.id = Partition.get_id()
 
         return copy_partition
 
@@ -121,10 +129,10 @@ class Partition:
                 net_on_left = True
             elif net.source.id in self.right:
                 net_on_right = True
-            for node in net.sinks:
-                if node.id in self.left:
+            for net_node in net.sinks:
+                if net_node.id in self.left:
                     net_on_left = True
-                if node.id in self.right:
+                if net_node.id in self.right:
                     net_on_right = True
             if net_on_left and net_on_right:
                 # Net is already split
@@ -287,6 +295,7 @@ def step():
         for partition in partition_list:
             if partition.cost < best_partition.cost:
                 best_partition = partition
+        print("Final cost: " + str(best_partition.cost))
         return
 
     next_node = node_dict[node_id_queue.pop()]
@@ -295,7 +304,7 @@ def step():
     while partition_list:
         # Create left and right partitions
         new_partition_left = partition_list.pop()
-        new_partition_right = deepcopy(new_partition_left)
+        new_partition_right = new_partition_left.copy()
         new_partition_left.add_node(next_node, add_left=True)
         new_partition_right.add_node(next_node, add_left=False)
         # Check if new partitions are valid
@@ -306,7 +315,6 @@ def step():
 
     partition_list = current_depth_partitions
     current_tree_depth += 1
-    print(current_tree_depth)
 
 
 def initial_partition(partition_canvas):
