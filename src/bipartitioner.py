@@ -13,10 +13,10 @@ from math import exp, sqrt, ceil
 from copy import deepcopy
 
 # Constants
-file_name = "test.txt"
 FILE_DIR = "../benchmarks/"
 
 # Global variables
+file_name = ""
 num_nodes_to_part = 0  # Number of nodes in the circuit to be placed
 num_node_connections = 0  # Number of connections to be routed, summed across all nodes/nets
 grid_width = 2  # Width of the partition grid
@@ -47,6 +47,7 @@ class Site:
         self.canvas_centre = (-1, -1)  # Geometric centre of Tkinter rectangle
         self.isOccupied = False  # Is the site occupied by a node?
         self.occupant = None  # Reference to occupant node
+        self.text_id = None
         pass
 
 
@@ -276,9 +277,6 @@ def multistep(partition_canvas, n):
     :return: void
     """
 
-    # Redraw lines on GUI to reflect current state of partitioning
-    #if partition_canvas is not None:
-    #    redraw_all_lines(partition_canvas)
     pass
 
 
@@ -343,7 +341,7 @@ def initial_partition(partition_canvas):
 
     print("Initial cost: " + str(best_partition.cost))
 
-    place_partition(best_partition)
+    place_partition(partition_canvas, best_partition)
 
     # Draw partition
     for net in net_dict.values():
@@ -354,7 +352,7 @@ def initial_partition(partition_canvas):
     partition_list.append(Partition())  # A blank partition to start branch-and-bound from
 
 
-def place_partition(partition: Partition):
+def place_partition(partition_canvas: Canvas, partition: Partition):
     global partition_grid
 
     for node_id in node_dict.keys():
@@ -367,13 +365,15 @@ def place_partition(partition: Partition):
     # Place left half of partition
     x = 0
     for y, node_id in enumerate(partition.left):
-        place_node(node_dict[node_id], x, y)
+        node_to_place = node_dict[node_id]
+        place_node(partition_canvas, node_to_place, x, y)
     x = 1
     for y, node_id in enumerate(partition.right):
-        place_node(node_dict[node_id], x, y)
+        node_to_place = node_dict[node_id]
+        place_node(partition_canvas, node_to_place, x, y)
 
 
-def place_node(node, x, y):
+def place_node(partition_canvas: Canvas, node, x, y):
     global partition_grid
 
     partition_site = partition_grid[y][x]
@@ -381,14 +381,20 @@ def place_node(node, x, y):
     node.site = partition_site
     partition_site.isOccupied = True
     node.isPlaced = True
+    site_rect_coords = partition_canvas.coords(partition_site.canvas_id)
+    text_x = (site_rect_coords[0] + site_rect_coords[2]) / 2
+    text_y = (site_rect_coords[1] + site_rect_coords[3]) / 2
+    partition_site.text_id = partition_canvas.create_text(text_x, text_y, font=("arial", 10),
+                                                          text=str(node.id), fill='blue')
 
 
-def remove_node(node):
+def remove_node(partition_canvas: Canvas, node):
     global partition_grid
 
     node.isPlaced = False
     node.site.isOccupied = False
     node.site.occupant = None
+    partition_canvas.delete(node.site.text_id)
     node.site = None
 
 
@@ -397,9 +403,9 @@ def replace_partition(partition_canvas: Canvas):
 
     # Remove all nodes from the grid
     for node in node_dict.values():
-        remove_node(node)
+        remove_node(partition_canvas, node)
 
-    place_partition(best_partition)
+    place_partition(partition_canvas, best_partition)
 
     redraw_all_lines(partition_canvas)
 
