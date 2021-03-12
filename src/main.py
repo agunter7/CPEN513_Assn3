@@ -1,6 +1,6 @@
 import cProfile
 import pstats
-import sim_anneal
+import bipartitioner
 
 # Experimental grid search parameters (do not alter)
 FILE_NAMES = ["cc.txt", "cm82a.txt", "cm138a.txt", "cm150a.txt", "cm162a.txt", "con1.txt", "twocm.txt", "ugly8.txt",
@@ -20,7 +20,7 @@ def main():
         pass
         print("Experimental mode not in use.")
     else:
-        sim_anneal.partition_algorithm(USER_FILE_NAME)
+        bipartitioner.partition_algorithm(USER_FILE_NAME)
 
 
 if __name__ == "__main__":

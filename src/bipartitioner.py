@@ -296,7 +296,12 @@ def step():
             if partition.cost < best_partition.cost:
                 best_partition = partition
         print("Final cost: " + str(best_partition.cost))
+        print("Final partition:")
+        print("Left" + str(best_partition.left))
+        print("Right" + str(best_partition.right))
         return
+
+    print("Partitioning at tree depth of " + str(current_tree_depth))
 
     next_node = node_dict[node_id_queue.pop()]
     current_depth_partitions = []
