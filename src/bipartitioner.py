@@ -7,7 +7,6 @@ Uses Tkinter for GUI.
 import os
 import random
 import time
-import matplotlib.pyplot as plt
 from tkinter import *
 from math import exp, sqrt, ceil
 from copy import deepcopy
@@ -17,26 +16,25 @@ from queue import PriorityQueue
 FILE_DIR = "../benchmarks/"
 
 # Global variables
-file_name = ""
-num_nodes_to_part = 0  # Number of nodes in the circuit to be placed
-num_node_connections = 0  # Number of connections to be routed, summed across all nodes/nets
+file_name = ""  # Name of benchmark file to open
+num_nodes_to_part = 0  # Number of nodes in the graph
+num_node_connections = 0  # Number of edges in the graph
 grid_width = 2  # Width of the partition grid
 grid_height = 0  # Height of the partition grid
 node_dict = {}  # Dictionary of all nodes, key is node ID
 net_dict = {}  # Dictionary of all nets, key is net ID
-partition_dict = {}
-partition_grid = []  # 2D list of sites for partition
+partition_grid = []  # 2D list of sites for partitioned nodes
 partitioning_done = False  # Is the partition complete?
 root = None  # Tkinter root
 unique_line_list = []  # List of unique lines across multiple nets
-solution_is_optimal = True
+solution_is_optimal = True  # Is the final solution (known to be) optimal? Default true, prove false
 
 # Partitioning variables
-best_partition = None
-partition_pq = PriorityQueue()
-current_tree_depth = 0
-node_id_pq = PriorityQueue()
-max_nodes_per_half = 0
+best_partition = None  # The best partition observed so far
+partition_pq = PriorityQueue()  # Priority queue of partial solution partitions
+current_tree_depth = 0  # Current depth of the decision tree being explored
+node_id_pq = PriorityQueue()  # Priority queue of the nodes to be placed in a partition
+max_nodes_per_half = 0  # Maximum number of nodes that can be placed in half of a bi-partition
 
 
 class Site:
@@ -50,8 +48,7 @@ class Site:
         self.canvas_centre = (-1, -1)  # Geometric centre of Tkinter rectangle
         self.isOccupied = False  # Is the site occupied by a node?
         self.occupant = None  # Reference to occupant node
-        self.text_id = None
-        pass
+        self.text_id = None  # ID of the Tkinter text inside this site
 
 
 class Node:
@@ -64,16 +61,22 @@ class Node:
         self.isSource = False  # Is this node a source node?
         self.site = None  # Reference to the site this node occupies
         self.nets = []  # Nets this node is a part of
-        self.family = []
-        pass
+        self.family = []  # Neighbours, and neighbours of neighbours, in original graph
 
 
 class NodeCluster:
+    """
+    A collection of nodes
+    """
     def __init__(self):
-        self.nodes = []
-        self.family = []
+        self.nodes = []  # Nodes in the cluster
+        self.family = []  # Concatenation of nodes' families
 
     def add_node(self, node):
+        """
+        Add a node to this cluster
+        :param node: Node to add
+        """
         self.nodes.append(node)
         for new_family_member in node.family:
             self.family.append(new_family_member)
@@ -93,34 +96,47 @@ class Partition:
     """
     A bipartite collection of nodes
     """
-    id_counter = 0
+    id_counter = 0  # Counter for all partition IDs
 
     def __init__(self):
-        self.left = []
-        self.right = []
-        self.cost = 0
-        self.id = Partition.get_id()
-        self.parent_id = 0
+        self.left = []  # Left half of partition
+        self.right = []  # Right half of partition
+        self.cost = 0  # Cost of this partition
+        self.id = Partition.get_id()  # ID of this partition
+        self.parent_id = 0  # ID of the parent partition
         Partition.id_counter += 1
 
-    def __lt__(self, other):
-        # Comparator for <
-        return self.cost > other.cost  # We want to reverse the order for our priority queue
+    def __lt__(self, other) -> bool:
+        """
+        Overwrite Python dunder for '<' operator
+        :param other: Another Partition
+        :return: bool for ordering
+        """
+        return self.cost > other.cost  # Want to reverse the order for priority queue
 
     @staticmethod
     def get_id():
+        """
+        Get an ID from class counter
+        """
         temp = Partition.id_counter
         Partition.id_counter += 1
         return temp
 
     def copy(self):
+        """
+        Make a copy of this partition
+        """
         copy_partition = deepcopy(self)
         copy_partition.parent_id = copy_partition.id
         copy_partition.id = Partition.get_id()
-
         return copy_partition
 
     def calculate_cost(self):
+        """
+        Calculate the cost of this partition.
+        Updates self.cost
+        """
         local_partition_cost = 0
 
         for net in net_dict.values():
@@ -142,6 +158,11 @@ class Partition:
         self.cost = local_partition_cost
 
     def add_node(self, node: Node, add_left=True):
+        """
+        Add a node to this partition
+        :param node: Node to place
+        :param add_left: Add the node to the left partition? Else, add right.
+        """
         # Check if node will split any nets
         for net in node.nets:
             net_on_left = False
@@ -173,7 +194,13 @@ class Partition:
         else:
             self.right.append(node.id)
 
-    def is_balanced(self):
+    def is_balanced(self) -> bool:
+        """
+        Is this partition balanced?
+        Defined within context of a full solution, don't care about partial solutions.
+        E.g. For 100 nodes to place, a 10 to 2 partition with 88 remaining is fine
+        :return: boolean
+        """
         global max_nodes_per_half
 
         if len(self.left) > max_nodes_per_half or len(self.right) > max_nodes_per_half:
@@ -192,12 +219,11 @@ class Net:
         self.source = None  # Reference to source node
         self.sinks = []  # References to sink nodes
         self.lines = []  # References to Lines in this net
-        pass
 
     
 def partition_algorithm(f_name: str):
     """
-    Perform anneal with a GUI.
+    Perform partitioning with a GUI.
     :param f_name: Name of file to open
     :return: void
     """
@@ -274,7 +300,7 @@ def partition_algorithm(f_name: str):
 
 def partition_to_completion(partition_canvas):
     """
-    Execute Simulated Annealing to completion.
+    Execute branch-and-bound partitioning to completion.
     :param partition_canvas: Tkinter canvas
     :return: void
     """
@@ -290,21 +316,14 @@ def partition_to_completion(partition_canvas):
     elapsed = end - start
     print("Took " + str(elapsed) + "s")
 
+    # Update GUI with final partition
     replace_partition(partition_canvas)
 
 
-def multistep(partition_canvas, n):
-    """
-    Perform multiple iterations of partitioning
-    :param partition_canvas: Tkinter canvas
-    :param n: Number of iterations
-    :return: void
-    """
-
-    pass
-
-
 def step():
+    """
+    Explore one layer of the partitioning decision tree
+    """
     global best_partition
     global node_id_pq
     global partition_pq
@@ -312,12 +331,11 @@ def step():
     global current_tree_depth
     global solution_is_optimal
 
+    # Check if algorithm is complete
     if node_id_pq.empty() or partition_pq.empty():
         partitioning_done = True
         # Update best partition
         while not partition_pq.empty():
-            # Only need to retrieve one partition from queue,
-            # because it removes the partition with least cost by default
             _, partition = partition_pq.get()
             if partition.cost < best_partition.cost:
                 best_partition = partition
@@ -343,14 +361,15 @@ def step():
         new_partition_right = new_partition_left.copy()
         new_partition_left.add_node(next_node, add_left=True)
         new_partition_right.add_node(next_node, add_left=False)
-        # Check if new partitions are valid
+        # Check if new partitions are valid, prune by cost
         if new_partition_left.cost < best_partition.cost and new_partition_left.is_balanced():
             current_depth_partitions.put((-1*new_partition_left.cost, new_partition_left))
         if new_partition_right.cost < best_partition.cost and new_partition_right.is_balanced():
             current_depth_partitions.put((-1*new_partition_right.cost, new_partition_right))
 
     partition_pq = current_depth_partitions
-    # Forcibly prune partition tree to a size that will yield manageable runtime (2^20)
+    # Forcibly prune partition tree to a size (2^20) that will yield manageable runtime
+    # PQ sorted by cost, will remove max cost items first
     while partition_pq.qsize() > 1048576:
         solution_is_optimal = False
         _, _ = partition_pq.get()
@@ -674,8 +693,6 @@ def key_handler(partition_canvas, event):
     e_char = event.char
     if e_char == '0':
         partition_to_completion(partition_canvas)
-    elif str.isdigit(e_char):
-        multistep(partition_canvas, int(e_char))
     else:
         pass
 
