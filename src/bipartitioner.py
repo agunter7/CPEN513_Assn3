@@ -359,20 +359,35 @@ def initial_partition(partition_canvas):
     global num_nodes_to_part
     global best_partition
 
-    best_partition = Partition()
-    for node_idx, node_id in enumerate(node_dict.keys()):
-        # Place nodes randomly into partition
-        if node_idx % 2 == 0:
-            best_partition.left.append(node_id)
-        else:
-            best_partition.right.append(node_id)
+    node_id_list = []
+    for node_id in node_dict.keys():
+        node_id_list.append(node_id)  # For random partition search
         node_id_queue.append(node_id)  # For later branch-and-bound processing
-    best_partition.calculate_cost()
+
+    rand_start = time.time()
+    best_partition = Partition()
+    best_random_cost = float("inf")
+    for _ in range(100):
+        new_partition = Partition()
+        random.shuffle(node_id_list)
+        for node_idx, node_id in enumerate(node_id_list):
+            # Place nodes randomly into partition
+            if node_idx % 2 == 0:
+                new_partition.left.append(node_id)
+            else:
+                new_partition.right.append(node_id)
+        new_partition.calculate_cost()
+        if new_partition.cost < best_random_cost:
+            best_random_cost = new_partition.cost
+            best_partition = new_partition
+    rand_end = time.time()
     print("Initial random cost: " + str(best_partition.cost))
+    print("Random search took " + str(rand_end-rand_start) + "s")
 
     # Cluster nodes intelligently
 
     # Get family of each node
+    intel_start = time.time()
     for root_node in node_dict.values():
         for immediate_net in root_node.nets:
             if immediate_net.source.id not in root_node.family:
@@ -466,14 +481,14 @@ def initial_partition(partition_canvas):
         cluster_list[1].nodes.remove(emigrant_node)  # TODO: Note that cluster family should be reduced
 
     # Set two clusters as best partition
-    print(len(cluster_list[0].nodes))
-    print(len(cluster_list[1].nodes))
     best_partition = Partition()
     for left_node in cluster_list[0].nodes:
         best_partition.left.append(left_node.id)
     for right_node in cluster_list[1].nodes:
         best_partition.right.append(right_node.id)
     best_partition.calculate_cost()
+    intel_end = time.time()
+    print("Intelligent partition took " + str(intel_end-intel_start) + "s")
     print("Initial intelligent cost: " + str(best_partition.cost))
 
     place_partition(partition_canvas, best_partition)
