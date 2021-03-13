@@ -63,7 +63,19 @@ class Node:
         self.isSource = False  # Is this node a source node?
         self.site = None  # Reference to the site this node occupies
         self.nets = []  # Nets this node is a part of
+        self.family = []
         pass
+
+
+class NodeCluster:
+    def __init__(self):
+        self.nodes = []
+        self.family = []
+
+    def add_node(self, node):
+        self.nodes.append(node)
+        for new_family_member in node.family:
+            self.family.append(new_family_member)
 
 
 class Line:
@@ -109,10 +121,10 @@ class Partition:
 
     def calculate_cost(self):
         local_partition_cost = 0
-        net_on_left = False
-        net_on_right = False
 
         for net in net_dict.values():
+            net_on_left = False
+            net_on_right = False
             if net.source.id in self.left:
                 net_on_left = True
             elif net.source.id in self.right:
@@ -356,8 +368,113 @@ def initial_partition(partition_canvas):
             best_partition.right.append(node_id)
         node_id_queue.append(node_id)  # For later branch-and-bound processing
     best_partition.calculate_cost()
+    print("Initial random cost: " + str(best_partition.cost))
 
-    print("Initial cost: " + str(best_partition.cost))
+    # Cluster nodes intelligently
+
+    # Get family of each node
+    for root_node in node_dict.values():
+        for immediate_net in root_node.nets:
+            if immediate_net.source.id not in root_node.family:
+                root_node.family.append(immediate_net.source.id)
+            for sink in immediate_net.sinks:
+                if sink.id not in root_node.family:
+                    root_node.family.append(sink.id)
+    cluster_list = []
+
+    # Create clusters that only contain a single node as a starting point
+    for candidate_node in node_dict.values():
+        new_cluster = NodeCluster()
+        new_cluster.nodes.append(candidate_node)
+        new_cluster.family = candidate_node.family
+        cluster_list.append(new_cluster)
+
+    holdout_clusters = []
+
+    while len(cluster_list) > 2:
+        candidate_list = []
+        while cluster_list:
+            candidate_list.append(cluster_list.pop())
+        if len(candidate_list) % 2 == 1:
+            # Odd number of candidates
+            # Holdout smallest cluster (by family size) until end of cluster
+            smallest_cluster = None
+            smallest_family_size = float("inf")
+            for holdout_candidate in candidate_list:
+                if len(holdout_candidate.family) < smallest_family_size:
+                    smallest_family_size = len(holdout_candidate.family)
+                    smallest_cluster = holdout_candidate
+            holdout_clusters.append(smallest_cluster)
+            candidate_list.remove(smallest_cluster)
+        if len(candidate_list) == 2:
+            cluster_list = candidate_list
+            break
+        while candidate_list:
+            # Pick a starting cluster by largest family
+            starting_cluster = None
+            biggest_family = -1
+            for candidate_cluster in candidate_list:
+                if len(candidate_cluster.family) > biggest_family:
+                    starting_cluster = candidate_cluster
+                    biggest_family = len(candidate_cluster.family)
+            candidate_list.remove(starting_cluster)
+            # Find the cluster with the most familial overlap with the starting cluster
+            best_partner_cluster = None
+            best_overlap = -1
+            for candidate_cluster in candidate_list:
+                temp_overlap = count_family_overlap(starting_cluster, candidate_cluster)
+                if temp_overlap > best_overlap:
+                    best_overlap = temp_overlap
+                    best_partner_cluster = candidate_cluster
+            # Merge the two clusters
+            for new_node in best_partner_cluster.nodes:
+                starting_cluster.add_node(new_node)
+            candidate_list.remove(best_partner_cluster)
+            cluster_list.append(starting_cluster)  # Add the merged clusters back to the original list as one cluster
+    if len(cluster_list) != 2:
+        print("Clustering error: number of clusters is " + str(len(cluster_list)))
+        exit()
+    # Apportion nodes from holdout cluster to one of the two remaining clusters
+    for holdout_cluster in holdout_clusters:
+        for holdout_node in holdout_cluster.nodes:
+            left_overlap = count_family_overlap(holdout_node, cluster_list[0])
+            right_overlap = count_family_overlap(holdout_node, cluster_list[1])
+            if left_overlap > right_overlap:
+                cluster_list[0].add_node(holdout_node)
+            else:
+                cluster_list[1].add_node(holdout_node)
+    # Legalize clusters
+    while len(cluster_list[0].nodes) - len(cluster_list[1].nodes) > 1:
+        # Move node with smallest family from bigger cluster into smaller cluster
+        emigrant_node = None
+        smallest_family_size = float("inf")
+        for surplus_node in cluster_list[0].nodes:
+            if len(surplus_node.family) < smallest_family_size:
+                emigrant_node = surplus_node
+                smallest_family_size = len(surplus_node.family)
+        cluster_list[1].add_node(emigrant_node)
+        cluster_list[0].nodes.remove(emigrant_node)  # TODO: Note that cluster family should be reduced
+    while len(cluster_list[1].nodes) - len(cluster_list[0].nodes) > 1:
+        # Move node with smallest family from bigger cluster into smaller cluster
+        emigrant_node = None
+        smallest_family_size = float("inf")
+        for surplus_node in cluster_list[1].nodes:
+            if len(surplus_node.family) < smallest_family_size:
+                emigrant_node = surplus_node
+                smallest_family_size = len(surplus_node.family)
+        cluster_list[0].add_node(emigrant_node)
+        cluster_list[1].nodes.remove(emigrant_node)  # TODO: Note that cluster family should be reduced
+
+    # Set two clusters as best partition
+    print(len(cluster_list[0].nodes))
+    print(len(cluster_list[1].nodes))
+    best_partition = Partition()
+    for left_node in cluster_list[0].nodes:
+        best_partition.left.append(left_node.id)
+    for right_node in cluster_list[1].nodes:
+        best_partition.right.append(right_node.id)
+    best_partition.calculate_cost()
+    print("Initial intelligent cost: " + str(best_partition.cost))
 
     place_partition(partition_canvas, best_partition)
 
@@ -368,6 +485,15 @@ def initial_partition(partition_canvas):
             draw_net(partition_canvas, net)
 
     partition_pq.put((0, Partition()))  # A blank partition to start branch-and-bound from
+
+
+def count_family_overlap(cluster1, cluster2):
+    overlap = 0
+    for member1_id in cluster1.family:
+        for member2_id in cluster2.family:
+            if member1_id == member2_id:
+                overlap += 1
+    return overlap
 
 
 def place_partition(partition_canvas: Canvas, partition: Partition):
@@ -382,10 +508,12 @@ def place_partition(partition_canvas: Canvas, partition: Partition):
 
     # Place left half of partition
     x = 0
+    partition.left.sort()
     for y, node_id in enumerate(partition.left):
         node_to_place = node_dict[node_id]
         place_node(partition_canvas, node_to_place, x, y)
     x = 1
+    partition.right.sort()
     for y, node_id in enumerate(partition.right):
         node_to_place = node_dict[node_id]
         place_node(partition_canvas, node_to_place, x, y)
