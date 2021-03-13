@@ -29,12 +29,13 @@ partition_grid = []  # 2D list of sites for partition
 partitioning_done = False  # Is the partition complete?
 root = None  # Tkinter root
 unique_line_list = []  # List of unique lines across multiple nets
+solution_is_optimal = True
 
 # Partitioning variables
 best_partition = None
 partition_pq = PriorityQueue()
 current_tree_depth = 0
-node_id_queue = []
+node_id_pq = PriorityQueue()
 max_nodes_per_half = 0
 
 
@@ -305,12 +306,13 @@ def multistep(partition_canvas, n):
 
 def step():
     global best_partition
-    global node_id_queue
+    global node_id_pq
     global partition_pq
     global partitioning_done
     global current_tree_depth
+    global solution_is_optimal
 
-    if not node_id_queue or partition_pq.empty():
+    if node_id_pq.empty() or partition_pq.empty():
         partitioning_done = True
         # Update best partition
         while not partition_pq.empty():
@@ -319,15 +321,20 @@ def step():
             _, partition = partition_pq.get()
             if partition.cost < best_partition.cost:
                 best_partition = partition
-        print("Final cost: " + str(best_partition.cost))
         print("Final partition:")
         print("Left" + str(best_partition.left))
         print("Right" + str(best_partition.right))
+        if solution_is_optimal:
+            print("Optimal solution achieved.")
+        else:
+            print("Heuristic solution achieved.")
+        print("Final cost: " + str(best_partition.cost))
         return
 
     print("Partitioning " + str(partition_pq.qsize()) + " nodes at tree depth of " + str(current_tree_depth))
 
-    next_node = node_dict[node_id_queue.pop()]
+    _, next_node_id = node_id_pq.get()
+    next_node = node_dict[next_node_id]
     current_depth_partitions = PriorityQueue()
 
     while not partition_pq.empty():
@@ -345,6 +352,7 @@ def step():
     partition_pq = current_depth_partitions
     # Forcibly prune partition tree to a size that will yield manageable runtime (2^20)
     while partition_pq.qsize() > 1048576:
+        solution_is_optimal = False
         _, _ = partition_pq.get()
 
     current_tree_depth += 1
@@ -362,12 +370,12 @@ def initial_partition(partition_canvas):
     node_id_list = []
     for node_id in node_dict.keys():
         node_id_list.append(node_id)  # For random partition search
-        node_id_queue.append(node_id)  # For later branch-and-bound processing
+        node_id_pq.put((-1*len(node_dict[node_id].nets), node_id))  # For later branch-and-bound processing
 
     rand_start = time.time()
     best_partition = Partition()
     best_random_cost = float("inf")
-    for _ in range(100):
+    for _ in range(50000):
         new_partition = Partition()
         random.shuffle(node_id_list)
         for node_idx, node_id in enumerate(node_id_list):
@@ -390,11 +398,13 @@ def initial_partition(partition_canvas):
     intel_start = time.time()
     for root_node in node_dict.values():
         for immediate_net in root_node.nets:
-            if immediate_net.source.id not in root_node.family:
-                root_node.family.append(immediate_net.source.id)
-            for sink in immediate_net.sinks:
-                if sink.id not in root_node.family:
-                    root_node.family.append(sink.id)
+            root_node.family.append(immediate_net.source.id)
+            for immediate_sink in immediate_net.sinks:
+                root_node.family.append(immediate_sink.id)
+                for distant_net in immediate_sink.nets:
+                    root_node.family.append(distant_net.source.id)
+                    for distant_sink in distant_net.sinks:
+                        root_node.family.append(distant_sink)
     cluster_list = []
 
     # Create clusters that only contain a single node as a starting point
@@ -481,15 +491,17 @@ def initial_partition(partition_canvas):
         cluster_list[1].nodes.remove(emigrant_node)  # TODO: Note that cluster family should be reduced
 
     # Set two clusters as best partition
-    best_partition = Partition()
+    intelligent_partition = Partition()
     for left_node in cluster_list[0].nodes:
-        best_partition.left.append(left_node.id)
+        intelligent_partition.left.append(left_node.id)
     for right_node in cluster_list[1].nodes:
-        best_partition.right.append(right_node.id)
-    best_partition.calculate_cost()
+        intelligent_partition.right.append(right_node.id)
+    intelligent_partition.calculate_cost()
     intel_end = time.time()
-    print("Intelligent partition took " + str(intel_end-intel_start) + "s")
-    print("Initial intelligent cost: " + str(best_partition.cost))
+    if intelligent_partition.cost < best_partition.cost:
+        best_partition = intelligent_partition
+    print("Initial intelligent cost: " + str(intelligent_partition.cost))
+    print("Intelligent partition took " + str(intel_end - intel_start) + "s")
 
     place_partition(partition_canvas, best_partition)
 
@@ -545,7 +557,26 @@ def place_node(partition_canvas: Canvas, node, x, y):
     site_rect_coords = partition_canvas.coords(partition_site.canvas_id)
     text_x = (site_rect_coords[0] + site_rect_coords[2]) / 2
     text_y = (site_rect_coords[1] + site_rect_coords[3]) / 2
-    if node.isSource:
+    # Check if node is a source in a split net
+    node_is_split_source = False
+    for net in net_dict.values():
+        if net.source == node:
+            # Node is source in this net
+            # Check if this net is split
+            net_on_left = False
+            net_on_right = False
+            if net.source.id in best_partition.left:
+                net_on_left = True
+            if net.source.id in best_partition.right:
+                net_on_right = True
+            for sink_node in net.sinks:
+                if sink_node.id in best_partition.left:
+                    net_on_left = True
+                if sink_node.id in best_partition.right:
+                    net_on_right = True
+            if net_on_left and net_on_right:
+                node_is_split_source = True
+    if node_is_split_source:
         text_colour = 'blue'
     else:
         text_colour = 'black'

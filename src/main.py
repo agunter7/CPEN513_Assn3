@@ -7,7 +7,7 @@ FILE_NAMES = ["cc.txt", "cm82a.txt", "cm138a.txt", "cm150a.txt", "cm162a.txt", "
               "ugly16.txt", "z4ml.txt"]
 
 # File name for interactive program (with GUI). Edit this to change the netlist being annealed.
-USER_FILE_NAME = "z4ml.txt"
+USER_FILE_NAME = "cm150a.txt"
 
 # Notes
 # cc 62 42, cm82a 12 9, cm138a 24 16, cm150a 36 35, cm162a 37 32,

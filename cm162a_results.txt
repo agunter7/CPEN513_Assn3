@@ -1,0 +1,86 @@
+C:\Users\Andrew\AppData\Local\Programs\Python\Python39\python.exe C:/Users/Andrew/Documents/UNIVERSITY/UBC/W21/CAD/Assignment_3/CPEN513_Assn3/src/main.py
+Initial random cost: 12
+Random search took 2.4326870441436768s
+Initial intelligent cost: 15
+Intelligent partition took 0.6182100772857666s
+Partitioning 1 nodes at tree depth of 0
+Previous step took 0.0s
+Partitioning 2 nodes at tree depth of 1
+Previous step took 0.0s
+Partitioning 4 nodes at tree depth of 2
+Previous step took 0.0s
+Partitioning 8 nodes at tree depth of 3
+Previous step took 0.0s
+Partitioning 16 nodes at tree depth of 4
+Previous step took 0.0010097026824951172s
+Partitioning 32 nodes at tree depth of 5
+Previous step took 0.0010099411010742188s
+Partitioning 64 nodes at tree depth of 6
+Previous step took 0.0009999275207519531s
+Partitioning 128 nodes at tree depth of 7
+Previous step took 0.0030105113983154297s
+Partitioning 256 nodes at tree depth of 8
+Previous step took 0.007984399795532227s
+Partitioning 512 nodes at tree depth of 9
+Previous step took 0.015015602111816406s
+Partitioning 1024 nodes at tree depth of 10
+Previous step took 0.02921128273010254s
+Partitioning 2006 nodes at tree depth of 11
+Previous step took 0.06200003623962402s
+Partitioning 3200 nodes at tree depth of 12
+Previous step took 0.10505104064941406s
+Partitioning 4468 nodes at tree depth of 13
+Previous step took 0.13542938232421875s
+Partitioning 6550 nodes at tree depth of 14
+Previous step took 0.18800067901611328s
+Partitioning 8516 nodes at tree depth of 15
+Previous step took 0.2819995880126953s
+Partitioning 13690 nodes at tree depth of 16
+Previous step took 0.49301648139953613s
+Partitioning 19276 nodes at tree depth of 17
+Previous step took 0.6429998874664307s
+Partitioning 21808 nodes at tree depth of 18
+Previous step took 0.7070052623748779s
+Partitioning 32148 nodes at tree depth of 19
+Previous step took 0.9589986801147461s
+Partitioning 47018 nodes at tree depth of 20
+Previous step took 1.7041912078857422s
+Partitioning 79524 nodes at tree depth of 21
+Previous step took 3.09010910987854s
+Partitioning 133614 nodes at tree depth of 22
+Previous step took 4.897984504699707s
+Partitioning 186618 nodes at tree depth of 23
+Previous step took 6.9632322788238525s
+Partitioning 250326 nodes at tree depth of 24
+Previous step took 10.378498792648315s
+Partitioning 366974 nodes at tree depth of 25
+Previous step took 15.116100311279297s
+Partitioning 491114 nodes at tree depth of 26
+Previous step took 20.099090814590454s
+Partitioning 582946 nodes at tree depth of 27
+Previous step took 26.16111469268799s
+Partitioning 753768 nodes at tree depth of 28
+Previous step took 28.84190535545349s
+Partitioning 783856 nodes at tree depth of 29
+Previous step took 33.29630970954895s
+Partitioning 788436 nodes at tree depth of 30
+Previous step took 31.028682708740234s
+Partitioning 768972 nodes at tree depth of 31
+Previous step took 31.938877820968628s
+Partitioning 778518 nodes at tree depth of 32
+Previous step took 32.16765356063843s
+Partitioning 740450 nodes at tree depth of 33
+Previous step took 30.73709726333618s
+Partitioning 698332 nodes at tree depth of 34
+Previous step took 29.050744771957397s
+Partitioning 632842 nodes at tree depth of 35
+Previous step took 26.882065534591675s
+Partitioning 573930 nodes at tree depth of 36
+Previous step took 25.815086603164673s
+Final partition:
+Left[8, 14, 21, 22, 34, 36, 6, 3, 1, 2, 5, 7, 16, 19, 23, 24, 25, 32]
+Right[13, 26, 27, 30, 17, 28, 18, 20, 29, 31, 0, 4, 9, 10, 11, 12, 15, 33, 35]
+Optimal solution achieved.
+Final cost: 6
+Previous step took 3.0690109729766846s
+Took 364.87248492240906s

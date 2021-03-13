@@ -1,0 +1,135 @@
+Initial random cost: 15
+Random search took 4.344010353088379s
+Initial intelligent cost: 25
+Intelligent partition took 5.668000221252441s
+Partitioning 1 nodes at tree depth of 0
+Previous step took 0.0s
+Partitioning 2 nodes at tree depth of 1
+Previous step took 0.0s
+Partitioning 4 nodes at tree depth of 2
+Previous step took 0.0s
+Partitioning 8 nodes at tree depth of 3
+Previous step took 0.0s
+Partitioning 16 nodes at tree depth of 4
+Previous step took 0.0009887218475341797s
+Partitioning 32 nodes at tree depth of 5
+Previous step took 0.0009996891021728516s
+Partitioning 64 nodes at tree depth of 6
+Previous step took 0.002010822296142578s
+Partitioning 128 nodes at tree depth of 7
+Previous step took 0.003999948501586914s
+Partitioning 256 nodes at tree depth of 8
+Previous step took 0.009000062942504883s
+Partitioning 512 nodes at tree depth of 9
+Previous step took 0.01900005340576172s
+Partitioning 1024 nodes at tree depth of 10
+Previous step took 0.03398871421813965s
+Partitioning 2048 nodes at tree depth of 11
+Previous step took 0.07298898696899414s
+Partitioning 4096 nodes at tree depth of 12
+Previous step took 0.12902188301086426s
+Partitioning 8192 nodes at tree depth of 13
+Previous step took 0.3329892158508301s
+Partitioning 16384 nodes at tree depth of 14
+Previous step took 0.5120110511779785s
+Partitioning 32768 nodes at tree depth of 15
+Previous step took 1.2339999675750732s
+Partitioning 65536 nodes at tree depth of 16
+Previous step took 2.5209999084472656s
+Partitioning 131072 nodes at tree depth of 17
+Previous step took 5.791989803314209s
+Partitioning 262144 nodes at tree depth of 18
+Previous step took 11.908990621566772s
+Partitioning 524288 nodes at tree depth of 19
+Previous step took 23.99500012397766s
+Partitioning 1044296 nodes at tree depth of 20
+Previous step took 47.34999942779541s
+Partitioning 1048576 nodes at tree depth of 21
+Previous step took 53.53101968765259s
+Partitioning 1048576 nodes at tree depth of 22
+Previous step took 50.052979946136475s
+Partitioning 1048576 nodes at tree depth of 23
+Previous step took 56.531001567840576s
+Partitioning 1048576 nodes at tree depth of 24
+Previous step took 50.700541734695435s
+Partitioning 1048576 nodes at tree depth of 25
+Previous step took 58.21297216415405s
+Partitioning 1048576 nodes at tree depth of 26
+Previous step took 57.01857042312622s
+Partitioning 1048576 nodes at tree depth of 27
+Previous step took 61.22599148750305s
+Partitioning 1048576 nodes at tree depth of 28
+Previous step took 52.59100031852722s
+Partitioning 1048576 nodes at tree depth of 29
+Previous step took 61.53202748298645s
+Partitioning 1048576 nodes at tree depth of 30
+Previous step took 58.8109815120697s
+Partitioning 1048576 nodes at tree depth of 31
+Previous step took 60.095991134643555s
+Partitioning 1048576 nodes at tree depth of 32
+Previous step took 66.60056328773499s
+Partitioning 1048576 nodes at tree depth of 33
+Previous step took 60.69407868385315s
+Partitioning 1048576 nodes at tree depth of 34
+Previous step took 66.50899887084961s
+Partitioning 1048576 nodes at tree depth of 35
+Previous step took 62.963467836380005s
+Partitioning 1048576 nodes at tree depth of 36
+Previous step took 64.92326021194458s
+Partitioning 1048576 nodes at tree depth of 37
+Previous step took 62.96497988700867s
+Partitioning 1048576 nodes at tree depth of 38
+Previous step took 63.644644260406494s
+Partitioning 1048576 nodes at tree depth of 39
+Previous step took 69.98804140090942s
+Partitioning 1048576 nodes at tree depth of 40
+Previous step took 60.07197117805481s
+Partitioning 1048576 nodes at tree depth of 41
+Previous step took 68.3821313381195s
+Partitioning 1048576 nodes at tree depth of 42
+Previous step took 66.60056805610657s
+Partitioning 1048576 nodes at tree depth of 43
+Previous step took 66.58505773544312s
+Partitioning 1048576 nodes at tree depth of 44
+Previous step took 73.5997302532196s
+Partitioning 1048576 nodes at tree depth of 45
+Previous step took 64.22779250144958s
+Partitioning 1048576 nodes at tree depth of 46
+Previous step took 64.92869067192078s
+Partitioning 1048576 nodes at tree depth of 47
+Previous step took 65.91497945785522s
+Partitioning 1048576 nodes at tree depth of 48
+Previous step took 75.77000308036804s
+Partitioning 1048576 nodes at tree depth of 49
+Previous step took 68.25247955322266s
+Partitioning 1048576 nodes at tree depth of 50
+Previous step took 63.43676495552063s
+Partitioning 1048576 nodes at tree depth of 51
+Previous step took 67.46772313117981s
+Partitioning 1048576 nodes at tree depth of 52
+Previous step took 73.85737872123718s
+Partitioning 1048576 nodes at tree depth of 53
+Previous step took 63.82623076438904s
+Partitioning 1048576 nodes at tree depth of 54
+Previous step took 78.59266328811646s
+Partitioning 1048576 nodes at tree depth of 55
+Previous step took 65.15424513816833s
+Partitioning 1048576 nodes at tree depth of 56
+Previous step took 73.88155174255371s
+Partitioning 1048576 nodes at tree depth of 57
+Previous step took 63.98829531669617s
+Partitioning 1048576 nodes at tree depth of 58
+Previous step took 78.67896866798401s
+Partitioning 1048576 nodes at tree depth of 59
+Previous step took 65.07106614112854s
+Partitioning 1048576 nodes at tree depth of 60
+Previous step took 68.29165720939636s
+Partitioning 1048576 nodes at tree depth of 61
+Previous step took 47.037654399871826s
+Final partition:
+Left[22, 25, 38, 39, 40, 47, 54, 3, 26, 60, 8, 27, 29, 1, 7, 9, 11, 15, 16, 18, 30, 31, 35, 36, 41, 43, 48, 51, 53, 55, 59]
+Right[2, 19, 32, 37, 58, 24, 34, 46, 0, 4, 5, 6, 10, 12, 13, 14, 17, 20, 21, 23, 28, 33, 42, 44, 45, 49, 50, 52, 56, 57, 61]
+Heuristic solution achieved.
+Final cost: 4
+Previous step took 6.910435438156128s
+Took 2723.0391359329224s
