@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from tkinter import *
 from math import exp, sqrt, ceil
 from copy import deepcopy
+from queue import PriorityQueue
 
 # Constants
 FILE_DIR = "../benchmarks/"
@@ -23,6 +24,7 @@ grid_width = 2  # Width of the partition grid
 grid_height = 0  # Height of the partition grid
 node_dict = {}  # Dictionary of all nodes, key is node ID
 net_dict = {}  # Dictionary of all nets, key is net ID
+partition_dict = {}
 partition_grid = []  # 2D list of sites for partition
 partitioning_done = False  # Is the partition complete?
 root = None  # Tkinter root
@@ -30,7 +32,7 @@ unique_line_list = []  # List of unique lines across multiple nets
 
 # Partitioning variables
 best_partition = None
-partition_list = []
+partition_pq = PriorityQueue()
 current_tree_depth = 0
 node_id_queue = []
 max_nodes_per_half = 0
@@ -58,6 +60,7 @@ class Node:
     def __init__(self, node_id):
         self.id = node_id  # Identifier
         self.isPlaced = False  # Has this node been placed into a site?
+        self.isSource = False  # Is this node a source node?
         self.site = None  # Reference to the site this node occupies
         self.nets = []  # Nets this node is a part of
         pass
@@ -86,6 +89,9 @@ class Partition:
         self.id = Partition.get_id()
         self.parent_id = 0
         Partition.id_counter += 1
+
+    def __lt__(self, other):
+        return self.cost < other.cost
 
     @staticmethod
     def get_id():
@@ -261,7 +267,11 @@ def partition_to_completion(partition_canvas):
 
     start = time.time()  # Record time taken for full partition
     while not partitioning_done:
+        step_start = time.time()
         step()
+        step_end = time.time()
+        step_elapsed = step_end - step_start
+        print("Previous step took " + str(step_elapsed) + "s")
     end = time.time()
     elapsed = end - start
     print("Took " + str(elapsed) + "s")
@@ -283,14 +293,17 @@ def multistep(partition_canvas, n):
 def step():
     global best_partition
     global node_id_queue
-    global partition_list
+    global partition_pq
     global partitioning_done
     global current_tree_depth
 
-    if not node_id_queue or not partition_list:
+    if not node_id_queue or partition_pq.empty():
         partitioning_done = True
         # Update best partition
-        for partition in partition_list:
+        if not partition_pq.empty():
+            # Only need to retrieve one partition from queue,
+            # because it removes the partition with least cost by default
+            _, partition = partition_pq.get()
             if partition.cost < best_partition.cost:
                 best_partition = partition
         print("Final cost: " + str(best_partition.cost))
@@ -299,24 +312,24 @@ def step():
         print("Right" + str(best_partition.right))
         return
 
-    print("Partitioning at tree depth of " + str(current_tree_depth))
+    print("Partitioning " + str(partition_pq.qsize()) + " nodes at tree depth of " + str(current_tree_depth))
 
     next_node = node_dict[node_id_queue.pop()]
-    current_depth_partitions = []
+    current_depth_partitions = PriorityQueue()
 
-    while partition_list:
+    while not partition_pq.empty():
         # Create left and right partitions
-        new_partition_left = partition_list.pop()
+        _, new_partition_left = partition_pq.get()
         new_partition_right = new_partition_left.copy()
         new_partition_left.add_node(next_node, add_left=True)
         new_partition_right.add_node(next_node, add_left=False)
         # Check if new partitions are valid
         if new_partition_left.cost < best_partition.cost and new_partition_left.is_balanced():
-            current_depth_partitions.append(new_partition_left)
+            current_depth_partitions.put((new_partition_left.cost, new_partition_left))
         if new_partition_right.cost < best_partition.cost and new_partition_right.is_balanced():
-            current_depth_partitions.append(new_partition_right)
+            current_depth_partitions.put((new_partition_right.cost, new_partition_right))
 
-    partition_list = current_depth_partitions
+    partition_pq = current_depth_partitions
     current_tree_depth += 1
 
 
@@ -349,7 +362,7 @@ def initial_partition(partition_canvas):
         if partition_canvas is not None:
             draw_net(partition_canvas, net)
 
-    partition_list.append(Partition())  # A blank partition to start branch-and-bound from
+    partition_pq.put((0, Partition()))  # A blank partition to start branch-and-bound from
 
 
 def place_partition(partition_canvas: Canvas, partition: Partition):
@@ -384,8 +397,12 @@ def place_node(partition_canvas: Canvas, node, x, y):
     site_rect_coords = partition_canvas.coords(partition_site.canvas_id)
     text_x = (site_rect_coords[0] + site_rect_coords[2]) / 2
     text_y = (site_rect_coords[1] + site_rect_coords[3]) / 2
+    if node.isSource:
+        text_colour = 'blue'
+    else:
+        text_colour = 'black'
     partition_site.text_id = partition_canvas.create_text(text_x, text_y, font=("arial", 10),
-                                                          text=str(node.id), fill='blue')
+                                                          text=str(node.id), fill=text_colour)
 
 
 def remove_node(partition_canvas: Canvas, node):
@@ -549,6 +566,7 @@ def create_partition_grid(routing_file) -> list[list[Site]]:
         # Add nodes to net
         source_id = int(net_tokens[1])  # Add source node first
         source_node = node_dict[source_id]
+        source_node.isSource = True
         new_net.source = source_node
         source_node.nets.append(new_net)
         for sink_idx in range(2, num_nodes_in_net+1):
