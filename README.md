@@ -10,7 +10,7 @@ as the program performs an initial partition by default.
 Press '0' to run the entire algorithm to completion. The GUI may freeze during this,
 but information should be continually logged to the console.
 
-# Explanation
+# GUI + Console Explanation
 The initial partition will be displayed in the window at program start.
 Each node will be placed in a white block with the ID of the node displayed. The ID text is black by default, 
 but will be blue if the node is a source for a net that crosses the partition. A red line
