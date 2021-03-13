@@ -91,7 +91,8 @@ class Partition:
         Partition.id_counter += 1
 
     def __lt__(self, other):
-        return self.cost < other.cost
+        # Comparator for <
+        return self.cost > other.cost  # We want to reverse the order for our priority queue
 
     @staticmethod
     def get_id():
@@ -300,7 +301,7 @@ def step():
     if not node_id_queue or partition_pq.empty():
         partitioning_done = True
         # Update best partition
-        if not partition_pq.empty():
+        while not partition_pq.empty():
             # Only need to retrieve one partition from queue,
             # because it removes the partition with least cost by default
             _, partition = partition_pq.get()
@@ -325,11 +326,15 @@ def step():
         new_partition_right.add_node(next_node, add_left=False)
         # Check if new partitions are valid
         if new_partition_left.cost < best_partition.cost and new_partition_left.is_balanced():
-            current_depth_partitions.put((new_partition_left.cost, new_partition_left))
+            current_depth_partitions.put((-1*new_partition_left.cost, new_partition_left))
         if new_partition_right.cost < best_partition.cost and new_partition_right.is_balanced():
-            current_depth_partitions.put((new_partition_right.cost, new_partition_right))
+            current_depth_partitions.put((-1*new_partition_right.cost, new_partition_right))
 
     partition_pq = current_depth_partitions
+    # Forcibly prune partition tree to a size that will yield manageable runtime (2^20)
+    while partition_pq.qsize() > 1048576:
+        _, _ = partition_pq.get()
+
     current_tree_depth += 1
 
 
