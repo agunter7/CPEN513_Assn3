@@ -1,11 +1,12 @@
 import bipartitioner
 
 # File name for interactive program (with GUI). Edit this to change the netlist being annealed.
-USER_FILE_NAME = "ugly8.txt"
+USER_FILE_NAME = "twocm.txt"
 
 # file_name - nodes - connections
 # cc 62 42, cm82a 12 9, cm138a 24 16, cm150a 36 35, cm162a 37 32,
 # con1 14 12, twocm 70 69, ugly8 8 8, ugly16 16 16, z4ml 19 15
+# quad 32 136
 
 
 def main():

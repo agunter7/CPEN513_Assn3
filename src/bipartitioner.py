@@ -430,6 +430,7 @@ def initial_partition(partition_canvas):
             # Runtime will be quite large, use neighbourhood instead of extended neighbourhood as node family
             use_small_families = True
     if use_small_families:
+        print("Using regular neighbourhood")
         for root_node in node_dict.values():
             root_node.family = []
             for immediate_net in root_node.nets:
@@ -445,11 +446,9 @@ def initial_partition(partition_canvas):
         new_cluster.family = candidate_node.family
         cluster_list.append(new_cluster)
 
-    #print("2")
     # Iteratively group clusters together until only 2 clusters remain
     holdout_clusters = []
     while len(cluster_list) > 2:
-    #    print("loop")
         candidate_list = []
         while cluster_list:
             candidate_list.append(cluster_list.pop())
@@ -469,9 +468,7 @@ def initial_partition(partition_canvas):
             cluster_list = candidate_list
             break
         # Merge pairs of remaining clusters
-    #    print("Merging pairs")
         while candidate_list:
-    #        print("fk")
             # Pick a starting cluster by largest family
             starting_cluster = None
             biggest_family = -1
@@ -483,9 +480,7 @@ def initial_partition(partition_canvas):
             # Find the cluster with the most familial overlap with the starting cluster
             best_partner_cluster = None
             best_overlap = -1
-    #        print("Finding partner")
             for candidate_cluster in candidate_list:
-    #            print("Counting overlap")
                 temp_overlap = count_family_overlap(starting_cluster, candidate_cluster)
                 if temp_overlap > best_overlap:
                     best_overlap = temp_overlap

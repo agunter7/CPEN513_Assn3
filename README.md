@@ -4,6 +4,8 @@ CPEN 513 CAD Algorithms for Integrated Circuits Assignment 3: Branch-and-Bound b
 # Usage
 Run src/main.py with a Python 3.9 interpreter
 
+To select a specific benchmark, change the "USER_FILE_NAME" variable in main.py.
+
 A partitioning window should be displayed upon running the file. This may take a few seconds,
 as the program performs an initial partition by default. 
 
