@@ -1,7 +1,7 @@
 import bipartitioner
 
 # File name for interactive program (with GUI). Edit this to change the netlist being annealed.
-USER_FILE_NAME = "cm150a.txt"
+USER_FILE_NAME = "ugly8.txt"
 
 # file_name - nodes - connections
 # cc 62 42, cm82a 12 9, cm138a 24 16, cm150a 36 35, cm162a 37 32,

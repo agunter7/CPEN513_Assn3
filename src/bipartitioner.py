@@ -416,6 +416,7 @@ def initial_partition(partition_canvas):
     # Cluster nodes intelligently
     # Get family of each node
     intel_start = time.time()
+    use_small_families = False
     for root_node in node_dict.values():
         for immediate_net in root_node.nets:
             root_node.family.append(immediate_net.source.id)
@@ -425,6 +426,16 @@ def initial_partition(partition_canvas):
                     root_node.family.append(distant_net.source.id)
                     for distant_sink in distant_net.sinks:
                         root_node.family.append(distant_sink)
+        if len(root_node.family) > 1500:
+            # Runtime will be quite large, use neighbourhood instead of extended neighbourhood as node family
+            use_small_families = True
+    if use_small_families:
+        for root_node in node_dict.values():
+            root_node.family = []
+            for immediate_net in root_node.nets:
+                root_node.family.append(immediate_net.source.id)
+                for immediate_sink in immediate_net.sinks:
+                    root_node.family.append(immediate_sink.id)
 
     # Create clusters that only contain a single node as a starting point
     cluster_list = []
@@ -434,9 +445,11 @@ def initial_partition(partition_canvas):
         new_cluster.family = candidate_node.family
         cluster_list.append(new_cluster)
 
+    #print("2")
     # Iteratively group clusters together until only 2 clusters remain
     holdout_clusters = []
     while len(cluster_list) > 2:
+    #    print("loop")
         candidate_list = []
         while cluster_list:
             candidate_list.append(cluster_list.pop())
@@ -456,7 +469,9 @@ def initial_partition(partition_canvas):
             cluster_list = candidate_list
             break
         # Merge pairs of remaining clusters
+    #    print("Merging pairs")
         while candidate_list:
+    #        print("fk")
             # Pick a starting cluster by largest family
             starting_cluster = None
             biggest_family = -1
@@ -468,7 +483,9 @@ def initial_partition(partition_canvas):
             # Find the cluster with the most familial overlap with the starting cluster
             best_partner_cluster = None
             best_overlap = -1
+    #        print("Finding partner")
             for candidate_cluster in candidate_list:
+    #            print("Counting overlap")
                 temp_overlap = count_family_overlap(starting_cluster, candidate_cluster)
                 if temp_overlap > best_overlap:
                     best_overlap = temp_overlap
@@ -490,6 +507,7 @@ def initial_partition(partition_canvas):
                 cluster_list[0].add_node(holdout_node)
             else:
                 cluster_list[1].add_node(holdout_node)
+
     # Legalize clusters
     while len(cluster_list[0].nodes) - len(cluster_list[1].nodes) > 1:
         # Move node with smallest family from bigger cluster into smaller cluster
