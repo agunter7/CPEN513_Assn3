@@ -61,7 +61,7 @@ class Node:
         self.isSource = False  # Is this node a source node?
         self.site = None  # Reference to the site this node occupies
         self.nets = []  # Nets this node is a part of
-        self.family = []  # Neighbours, and neighbours of neighbours, in original graph
+        self.family = []  # Extended Neighbourhood: Neighbours + neighbours of neighbours, in original graph
 
 
 class NodeCluster:
@@ -386,11 +386,13 @@ def initial_partition(partition_canvas):
     global num_nodes_to_part
     global best_partition
 
+    # Setup list and priority queue of nodes
     node_id_list = []
     for node_id in node_dict.keys():
         node_id_list.append(node_id)  # For random partition search
         node_id_pq.put((-1*len(node_dict[node_id].nets), node_id))  # For later branch-and-bound processing
 
+    # Sample random bi-partitioning solutions
     rand_start = time.time()
     best_partition = Partition()
     best_random_cost = float("inf")
@@ -412,7 +414,6 @@ def initial_partition(partition_canvas):
     print("Random search took " + str(rand_end-rand_start) + "s")
 
     # Cluster nodes intelligently
-
     # Get family of each node
     intel_start = time.time()
     for root_node in node_dict.values():
@@ -424,17 +425,17 @@ def initial_partition(partition_canvas):
                     root_node.family.append(distant_net.source.id)
                     for distant_sink in distant_net.sinks:
                         root_node.family.append(distant_sink)
-    cluster_list = []
 
     # Create clusters that only contain a single node as a starting point
+    cluster_list = []
     for candidate_node in node_dict.values():
         new_cluster = NodeCluster()
         new_cluster.nodes.append(candidate_node)
         new_cluster.family = candidate_node.family
         cluster_list.append(new_cluster)
 
+    # Iteratively group clusters together until only 2 clusters remain
     holdout_clusters = []
-
     while len(cluster_list) > 2:
         candidate_list = []
         while cluster_list:
@@ -451,8 +452,10 @@ def initial_partition(partition_canvas):
             holdout_clusters.append(smallest_cluster)
             candidate_list.remove(smallest_cluster)
         if len(candidate_list) == 2:
+            # Clustering is done
             cluster_list = candidate_list
             break
+        # Merge pairs of remaining clusters
         while candidate_list:
             # Pick a starting cluster by largest family
             starting_cluster = None
@@ -461,7 +464,7 @@ def initial_partition(partition_canvas):
                 if len(candidate_cluster.family) > biggest_family:
                     starting_cluster = candidate_cluster
                     biggest_family = len(candidate_cluster.family)
-            candidate_list.remove(starting_cluster)
+            candidate_list.remove(starting_cluster)  # Starting cluster no longer eligible
             # Find the cluster with the most familial overlap with the starting cluster
             best_partner_cluster = None
             best_overlap = -1
@@ -473,12 +476,12 @@ def initial_partition(partition_canvas):
             # Merge the two clusters
             for new_node in best_partner_cluster.nodes:
                 starting_cluster.add_node(new_node)
-            candidate_list.remove(best_partner_cluster)
+            candidate_list.remove(best_partner_cluster)  # Partner cluster no longer eligible
             cluster_list.append(starting_cluster)  # Add the merged clusters back to the original list as one cluster
     if len(cluster_list) != 2:
         print("Clustering error: number of clusters is " + str(len(cluster_list)))
         exit()
-    # Apportion nodes from holdout cluster to one of the two remaining clusters
+    # Apportion nodes from holdout clusters to one of the two remaining clusters
     for holdout_cluster in holdout_clusters:
         for holdout_node in holdout_cluster.nodes:
             left_overlap = count_family_overlap(holdout_node, cluster_list[0])
@@ -509,7 +512,7 @@ def initial_partition(partition_canvas):
         cluster_list[0].add_node(emigrant_node)
         cluster_list[1].nodes.remove(emigrant_node)  # TODO: Note that cluster family should be reduced
 
-    # Set two clusters as best partition
+    # Set the two clusters as a partition
     intelligent_partition = Partition()
     for left_node in cluster_list[0].nodes:
         intelligent_partition.left.append(left_node.id)
@@ -517,14 +520,17 @@ def initial_partition(partition_canvas):
         intelligent_partition.right.append(right_node.id)
     intelligent_partition.calculate_cost()
     intel_end = time.time()
+
+    # Decide on best partition to carry forward as an initial partition
     if intelligent_partition.cost < best_partition.cost:
         best_partition = intelligent_partition
     print("Initial intelligent cost: " + str(intelligent_partition.cost))
     print("Intelligent partition took " + str(intel_end - intel_start) + "s")
 
+    # GUI update for placements
     place_partition(partition_canvas, best_partition)
 
-    # Draw partition
+    # Draw nets
     for net in net_dict.values():
         # Draw net on canvas
         if partition_canvas is not None:
@@ -533,7 +539,13 @@ def initial_partition(partition_canvas):
     partition_pq.put((0, Partition()))  # A blank partition to start branch-and-bound from
 
 
-def count_family_overlap(cluster1, cluster2):
+def count_family_overlap(cluster1, cluster2) -> int:
+    """
+    Count the overlap between two clusters/nodes.
+    :param cluster1: A Node or Cluster object
+    :param cluster2: A Node or Cluster object
+    :return: The overlap amount
+    """
     overlap = 0
     for member1_id in cluster1.family:
         for member2_id in cluster2.family:
@@ -543,8 +555,14 @@ def count_family_overlap(cluster1, cluster2):
 
 
 def place_partition(partition_canvas: Canvas, partition: Partition):
+    """
+    Place a partition in the partition grid for visualization purposes
+    :param partition_canvas: Tkinter canvas
+    :param partition: The Partition to place
+    """
     global partition_grid
 
+    # Check that all nodes are included in the partition
     for node_id in node_dict.keys():
         if node_id not in partition.left and node_id not in partition.right:
             print("Orphan node: ")
@@ -559,6 +577,7 @@ def place_partition(partition_canvas: Canvas, partition: Partition):
         node_to_place = node_dict[node_id]
         place_node(partition_canvas, node_to_place, x, y)
     x = 1
+    # Place right half of partition
     partition.right.sort()
     for y, node_id in enumerate(partition.right):
         node_to_place = node_dict[node_id]
@@ -566,6 +585,13 @@ def place_partition(partition_canvas: Canvas, partition: Partition):
 
 
 def place_node(partition_canvas: Canvas, node, x, y):
+    """
+    Place a single node in the partition grid
+    :param partition_canvas: Tkinter canvas
+    :param node: The Node to place
+    :param x: The x position in the grid to place the node
+    :param y: The y position in the grid to place the node
+    """
     global partition_grid
 
     partition_site = partition_grid[y][x]
@@ -604,6 +630,11 @@ def place_node(partition_canvas: Canvas, node, x, y):
 
 
 def remove_node(partition_canvas: Canvas, node):
+    """
+    Remove a node from its site in the partition grid
+    :param partition_canvas: Tkinter canvas
+    :param node: The node to remove
+    """
     global partition_grid
 
     node.isPlaced = False
@@ -614,6 +645,10 @@ def remove_node(partition_canvas: Canvas, node):
 
 
 def replace_partition(partition_canvas: Canvas):
+    """
+    Place the best partition from scratch
+    :param partition_canvas: Tkinter canvas
+    """
     global best_partition
 
     # Remove all nodes from the grid
@@ -628,6 +663,8 @@ def replace_partition(partition_canvas: Canvas):
 def draw_net(partition_canvas, net):
     """
     Draw a net on the canvas from scratch
+    :param partition_canvas: Tkinter canvas
+    :param net: The Net to draw
     """
     global unique_line_list
 
@@ -652,6 +689,9 @@ def draw_net(partition_canvas, net):
 def draw_line(partition_canvas, source: Node, sink: Node):
     """
     Draws a line between two placed nodes
+    :param partition_canvas: Tkinter canvas
+    :param source: source Node
+    :param sink: sink Node
     """
 
     # Get line coordinates
@@ -672,6 +712,8 @@ def redraw_line(partition_canvas, line: Line):
     """
     Redraw an existing line.
     Used when the line's source or sink has moved since last draw.
+    :param partition_canvas: Tkinter canvas
+    :param line: The Line to draw
     """
     source_centre = line.source.site.canvas_centre
     source_x = source_centre[0]
@@ -700,6 +742,7 @@ def key_handler(partition_canvas, event):
 def redraw_all_lines(partition_canvas: Canvas):
     """
     Redraw all of the lines in the GUI from scratch.
+    :param partition_canvas: Tkinter canvas
     """
     global unique_line_list
 
